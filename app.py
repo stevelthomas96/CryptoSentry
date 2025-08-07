@@ -4,6 +4,7 @@ import plotly.express as px
 from datetime import datetime
 from PIL import Image
 import plotly.figure_factory as ff
+from optimizer import load_price_data, load_sentiment_data, compute_sentiment_momentum, mean_variance_optimisation
 
 # ---------------- CONFIG ---------------- #
 st.set_page_config(page_title="CryptoSentry Portfolio", layout="wide")
@@ -34,11 +35,20 @@ def compute_risk_profile(df):
     profile = latest.groupby("cap")["weight"].sum().reset_index()
     return profile
 
+def generate_token_rationale(symbol, delta, sentiment, vol, ret):
+    direction = "increased" if delta > 0 else "reduced"
+    sentiment_desc = "positive" if sentiment > 0.1 else "negative" if sentiment < -0.1 else "neutral"
+    vol_desc = "high" if vol > 0.05 else "low"
+    ret_desc = "strong" if ret > 0.05 else "weak" if ret < -0.05 else "flat"
+    
+    return f"**{symbol}** is {direction} due to {sentiment_desc} sentiment, {vol_desc} volatility, and {ret_desc} recent returns."
+
+
 # ---------------- SIDEBAR ---------------- #
 with st.sidebar:
     st.title("📊 Navigation")
-    selection = st.radio("Go to:", ["Portfolio Overview", "Market Signals", "News Sentiment"])
-    
+    selection = st.radio("Go to:", ["Portfolio Overview", "Market Signals", "News Sentiment", "Performance Attribution"])
+
 
 # Remove default padding
 st.markdown("""
@@ -118,6 +128,89 @@ if selection == "Portfolio Overview":
             )
             st.plotly_chart(fig, use_container_width=True)
             st.markdown("<div style='height:180px;'></div>", unsafe_allow_html=True)
+            
+    # ---------- ROW 3: Suggested Rebalance ---------- #
+    with st.container(border=True):
+        st.markdown("### 🔁 Suggested Portfolio Rebalance (Sentiment-Enhanced MVO)")
+
+        VALID_TOKENS = ["BTC", "ETH", "ADA", "XRP", "DOT", "DOGE", "AVAX", "SOL", "MATIC", "LINK"]
+
+        # Load and align data
+        returns = load_price_data("data_outputs/crypto_prices.csv", VALID_TOKENS)
+        sentiment_df = load_sentiment_data("data_outputs/sentiment_timeseries.csv", VALID_TOKENS)
+        sentiment_momentum = compute_sentiment_momentum(sentiment_df)
+
+        # Optimise weights
+        try:
+            suggested_weights = mean_variance_optimisation(returns, sentiment_momentum)
+            suggested_weights = suggested_weights.round(4)
+
+            # Align current weights
+            current = latest_df.groupby("symbol")["weight"].sum()
+            current = current[current.index.isin(VALID_TOKENS)].reindex(VALID_TOKENS).fillna(0)
+
+            # Combine into table
+            compare_df = pd.DataFrame({
+                "Current": current,
+                "Suggested": suggested_weights
+            })
+            compare_df["Change"] = compare_df["Suggested"] - compare_df["Current"]
+            compare_df = compare_df.round(4)
+
+            st.dataframe(compare_df.style.format("{:.2%}"), use_container_width=True)
+            
+            # --- Rebalancing Trigger --- #
+            THRESHOLD = 0.10  # 10% change in allocation
+
+            if (compare_df["Change"].abs() > THRESHOLD).any():
+                st.warning("⚠️ A rebalancing opportunity has been detected based on significant allocation shifts (>10%).")
+            else:
+                st.success("✅ Portfolio appears balanced — no rebalancing action recommended.")
+                
+             # --- Rebalancing Reasoning --- #
+            st.markdown("#### 💡 Rebalancing Rationale")
+            explanations = []
+
+            for token, row in compare_df.iterrows():
+                change = row["Change"]
+                if abs(change) > THRESHOLD:
+                    direction = "increased" if change > 0 else "reduced"
+                    reason = f"**{token}**: {direction.capitalize()} from {row['Current']:.1%} → {row['Suggested']:.1%}"
+                    explanations.append(reason)
+
+            for reason in explanations:
+                st.markdown(f"- {reason}")
+
+            # --- Natural Language Rationale --- #
+            with st.expander("🧠 Token Allocation Rationale"):
+                latest_date = returns.index.max()
+                latest_sent = sentiment_momentum.loc[latest_date]
+                latest_vol = returns.rolling(14).std().iloc[-1]
+                latest_ret = returns.rolling(7).mean().iloc[-1]
+
+                for token in VALID_TOKENS:
+                    if token in compare_df.index:
+                        delta = compare_df.loc[token, "Change"]
+                        if abs(delta) > THRESHOLD:
+                            sentiment = latest_sent.get(token, 0)
+                            vol = latest_vol.get(token, 0)
+                            ret = latest_ret.get(token, 0)
+                            explanation = generate_token_rationale(token, delta, sentiment, vol, ret)
+                            st.markdown(f"- {explanation}")
+
+            # Bar chart of weight deltas
+            fig_delta = px.bar(
+                compare_df.reset_index(),
+                x="index",
+                y="Change",
+                color="Change",
+                color_continuous_scale="RdYlGn",
+                title="Suggested Weight Adjustment by Token"
+            )
+            st.plotly_chart(fig_delta, use_container_width=True)
+
+        except Exception as e:
+            st.error(f"Rebalancing model error: {e}")
 
 
 
@@ -331,6 +424,40 @@ elif selection == "News Sentiment":
         font=dict(color="white")
     )
     st.plotly_chart(fig_msi, use_container_width=True)
+    
+    # --- 3b. MSI Reversal Detector --- #
+    st.markdown("#### 🧭 Market Sentiment Reversal Detector")
+
+    # Detect sentiment reversal in MSI
+    msi_df_sorted = msi_df.sort_values("date").copy()
+    msi_df_sorted["delta"] = msi_df_sorted["MSI"].diff()
+    msi_df_sorted["trend"] = msi_df_sorted["delta"].apply(lambda x: "up" if x > 0 else "down" if x < 0 else "flat")
+
+    # Check if there was a trend change in last few entries
+    recent = msi_df_sorted.tail(7).reset_index(drop=True)
+    trend_changes = (recent["trend"] != recent["trend"].shift()).fillna(False)
+    reversal_row = recent[trend_changes].iloc[-1] if trend_changes.any() else None
+
+    if reversal_row is not None and reversal_row["trend"] in ["up", "down"]:
+        reversal_date = reversal_row["date"].date()
+        new_trend = reversal_row["trend"]
+
+        st.warning(f"⚠️ Market Sentiment Reversal Detected on **{reversal_date}**: Trend has turned **{new_trend}**.")
+
+        if new_trend == "down":
+            st.markdown("""
+            - 🛡️ **Caution advised**: The market tone is turning negative.  
+            - 📉 You may want to **reduce exposure** to high-risk tokens or consider rebalancing.  
+            - 📊 Monitor your portfolio closely — news-based volatility is likely increasing.
+            """)
+        else:
+            st.markdown("""
+            - 🚀 **Market optimism detected**: Sentiment is turning positive.  
+            - 🧠 Consider **increasing exposure** to high-momentum or bullish tokens.  
+            - 📈 Watch for confirmation in token-level sentiment and price trends.
+            """)
+    else:
+        st.success("✅ No major reversal detected in market sentiment over the past week.")
 
     # --- 4. Sentiment-Tagged News Article Feed --- #
     st.subheader("📰 Recent News Articles")
@@ -350,3 +477,88 @@ elif selection == "News Sentiment":
     # --- 5. Expandable Audit DataFrame --- #
     with st.expander("📄 Show full sentiment dataframe"):
         st.dataframe(filtered_df.sort_values(["symbol", "date"]), use_container_width=True)
+        
+    # --- 6. Token Sentiment Drilldown --- #
+    st.subheader("🔎 Token Sentiment Drilldown")
+
+    selected_token = st.selectbox("Select a token to explore sentiment trends:", VALID_TOKENS)
+
+    token_sentiment = sentiment_df[sentiment_df["symbol"] == selected_token]
+    token_articles = exploded[exploded["symbol"] == selected_token]
+
+    # a) Sentiment Trend
+    fig_trend = px.line(
+        token_sentiment,
+        x="date",
+        y="sentiment",
+        title=f"{selected_token} - Sentiment Over Time"
+    )
+    st.plotly_chart(fig_trend, use_container_width=True)
+
+    # b) Sentiment Disagreement (rolling std)
+    token_sentiment = token_sentiment.sort_values("date")
+    token_sentiment["std"] = token_sentiment["sentiment"].rolling(window=3).std()
+
+    fig_std = px.line(
+        token_sentiment,
+        x="date",
+        y="std",
+        title=f"{selected_token} - Sentiment Disagreement (Volatility Proxy)"
+    )
+    st.plotly_chart(fig_std, use_container_width=True)
+
+    # Load mock volume for all tokens
+    volume_df = pd.read_csv("data_outputs/news_article_counts.csv", parse_dates=["time"])
+
+    # Filter for selected token
+    article_volume = volume_df[volume_df["symbol"] == selected_token]
+
+    fig_vol = px.bar(
+        article_volume,
+        x="time",
+        y="count",
+        title=f"{selected_token} - News Article Volume"
+    )
+    st.plotly_chart(fig_vol, use_container_width=True)
+    
+elif selection == "Performance Attribution":
+    import numpy as np
+
+    st.title("📈 Performance Attribution")
+
+    # Load mock data (contains cumulative returns + daily % returns)
+    df = pd.read_csv("data_outputs/performance_comparison.csv", parse_dates=["time"])
+
+    # Extract columns
+    bh_cum = df.set_index("time")["Buy & Hold"]
+    mvo_cum = df.set_index("time")["Sentiment Rebalanced"]
+    bh_pct = df["bh_pct"]
+    mvo_pct = df["mvo_pct"]
+
+    # --- Cumulative Return Comparison ---
+    st.subheader("📊 Cumulative Return Comparison")
+    compare_df = pd.DataFrame({
+        "Buy & Hold": bh_cum,
+        "Sentiment Rebalanced": mvo_cum
+    })
+    st.line_chart(compare_df)
+
+    # --- Summary Table ---
+    st.subheader("📋 Performance Summary")
+
+    def performance_metrics(pct_ret, cum_ret):
+        total_return = cum_ret.iloc[-1] - 1
+        sharpe = (pct_ret.mean() / pct_ret.std()) * np.sqrt(252) if pct_ret.std() > 0 else np.nan
+        return total_return, sharpe
+
+    bh_ret, bh_sharpe = performance_metrics(bh_pct, bh_cum)
+    mvo_ret, mvo_sharpe = performance_metrics(mvo_pct, mvo_cum)
+
+    st.table(pd.DataFrame({
+        "Strategy": ["Buy & Hold", "Sentiment Rebalanced"],
+        "Total Return": [f"{bh_ret:.2%}", f"{mvo_ret:.2%}"],
+        "Sharpe Ratio": [f"{bh_sharpe:.2f}", f"{mvo_sharpe:.2f}"]
+    }))
+
+
+
