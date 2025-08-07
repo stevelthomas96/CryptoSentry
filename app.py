@@ -2,98 +2,97 @@
 
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-from PIL import Image
 import os
+import seaborn as sns
+import matplotlib.pyplot as plt
 
-# ----------------- CONFIG -----------------
+# --------------- CONFIG ----------------
 DATA_DIR = "data_outputs"
-FIGURE_DIR_2 = "figures/station2"
-FIGURE_DIR_3 = "figures/station3"
+FIGURE_DIR = "figures"
+TOKENS = ["BTC", "ETH", "SOL", "DOGE", "AVAX", "DOT", "LINK", "XRP", "MATIC", "ADA"]
 
-# ----------------- LOAD DATA -----------------
+# --------------- PAGE SETUP ------------
+st.set_page_config(page_title="CryptoSentry", layout="wide")
+st.title("📈 CryptoSentry AI Dashboard")
+st.markdown("""
+Welcome to **CryptoSentry** – your intelligent crypto portfolio assistant.
+
+This prototype shows how real-time price and news sentiment data can be used to:
+- Visualise market signals  
+- Forecast token returns  
+- Suggest optimised rebalancing  
+""")
+
+# --------------- LOAD DATA ----------------
 @st.cache_data
-def load_data():
-    prices = pd.read_csv(f"{DATA_DIR}/crypto_prices.csv", parse_dates=["time"])
-    news = pd.read_csv(f"{DATA_DIR}/news_with_sentiment.csv", parse_dates=["published_on"])
-    features = pd.read_csv(f"{DATA_DIR}/token_features.csv", parse_dates=["time"])
-    weights = pd.read_csv(f"{DATA_DIR}/portfolio_weights.csv", parse_dates=["time"])
-    return prices, news, features, weights
+def load_csv(name):
+    path = os.path.join(DATA_DIR, name)
+    return pd.read_csv(path, parse_dates=["time"], low_memory=False)
 
-prices, news, features, weights = load_data()
+@st.cache_data
+def load_news():
+    df = pd.read_csv(os.path.join(DATA_DIR, "news_with_sentiment.csv"), parse_dates=["published_on"], low_memory=False)
+    df["categories"] = df["categories"].astype(str)
 
-# ----------------- SIDEBAR NAV -----------------
-st.sidebar.title("CryptoSentry Navigation")
-page = st.sidebar.radio("Go to", [
-    "📌 About & Onboarding",
-    "📊 Portfolio Dashboard",
-    "🧠 Sentiment Analysis",
-    "📈 Feature Correlation",
-    "⚙️ Rebalancing Snapshots"
-])
+    # Extract token symbol from 'categories'
+    def extract_token(categories_str):
+        for token in TOKENS:
+            if token in categories_str.split("|"):
+                return token
+        return "OTHER"
 
-# ----------------- PAGE 1: ABOUT -----------------
-if page == "📌 About & Onboarding":
-    st.title("🚀 CryptoSentry AI Dashboard")
-    st.markdown("""
-    Welcome to CryptoSentry – your intelligent crypto portfolio assistant.
+    df["symbol"] = df["categories"].apply(extract_token)
+    return df
 
-    **This prototype** shows how real-time price and news sentiment data can be used to:
-    - Visualise market signals
-    - Forecast token returns
-    - Suggest optimised rebalancing
+# --------------- SIDEBAR NAVIGATION ------------
+page = st.sidebar.radio("📂 Explore the data:", ["Sentiment Articles", "Model Features", "Portfolio Dashboard"])
 
-    ---
-    🔎 Explore the sidebar to:
-    - View sentiment data
-    - Examine model features
-    - Track historical allocations
-    """)
+# --------------- PAGE 1: Sentiment Articles ------------
+if page == "Sentiment Articles":
+    st.subheader("🗞️ News Article Sentiment")
+    news = load_news()
 
-    st.subheader("🧪 Example Article")
-    st.dataframe(news[["published_on", "title", "symbol", "sentiment"]].sample(1))
+    with st.expander("Random Sample of Articles"):
+        st.dataframe(news[["published_on", "title", "symbol", "sentiment"]].sample(5).reset_index(drop=True))
 
-# ----------------- PAGE 2: PORTFOLIO -----------------
-elif page == "📊 Portfolio Dashboard":
-    st.title("💼 Portfolio Allocation Over Time")
+    st.subheader("📊 Sentiment Distribution")
+    fig, ax = plt.subplots(figsize=(8, 4))
+    sns.histplot(data=news, x="sentiment", hue="symbol", multiple="stack", bins=30, palette="tab10", edgecolor=None)
+    st.pyplot(fig)
 
-    st.markdown("#### Portfolio Weights (Stacked View)")
-    st.image(f"{FIGURE_DIR_3}/weights_over_time.png", use_column_width=True)
+# --------------- PAGE 2: Model Features ------------
+elif page == "Model Features":
+    st.subheader("📈 Token Features and Correlations")
+    df = load_csv("token_features.csv")
 
-    st.markdown("#### Token Allocations at Each Rebalance")
-    for t in weights["time"].dt.date.unique():
-        st.image(f"{FIGURE_DIR_3}/allocation_snapshot_{t}.png", caption=f"Token Weights on {t}")
+    with st.expander("Preview of Engineered Features"):
+        st.dataframe(df.head())
 
-# ----------------- PAGE 3: SENTIMENT -----------------
-elif page == "🧠 Sentiment Analysis":
-    st.title("📉 Sentiment Insights")
+    st.subheader("🔁 Feature Correlation Matrix")
+    numeric_features = df[["return", "volatility", "momentum", "tssi", "sentiment_momentum"]]
+    corr = numeric_features.corr()
 
-    st.markdown("#### Total Article Volume Over Time")
-    st.image(f"{FIGURE_DIR_2}/article_volume_over_time.png", use_column_width=True)
+    fig, ax = plt.subplots(figsize=(6, 5))
+    sns.heatmap(corr, annot=True, cmap="coolwarm", fmt=".2f")
+    st.pyplot(fig)
 
-    st.markdown("#### Sentiment vs Return")
-    st.image(f"{FIGURE_DIR_2}/sentiment_vs_return.png", use_column_width=True)
+# --------------- PAGE 3: Portfolio Dashboard ------------
+elif page == "Portfolio Dashboard":
+    st.subheader("📊 Portfolio Allocation Weights")
+    weights = load_csv("portfolio_weights.csv")
 
-    st.markdown("#### Sample Articles with High Sentiment")
-    high_sentiment = news[news["sentiment"] > 0.9].sort_values("sentiment", ascending=False)
-    st.dataframe(high_sentiment[["published_on", "title", "symbol", "sentiment"]].head(5))
+    fig, ax = plt.subplots(figsize=(10, 5))
+    pivot = weights.pivot(index="time", columns="symbol", values="weight").fillna(0)
+    pivot.plot(kind="bar", stacked=True, ax=ax, colormap="tab10")
+    ax.set_ylabel("Weight")
+    ax.set_title("Portfolio Weights Over Time")
+    st.pyplot(fig)
 
-# ----------------- PAGE 4: FEATURES -----------------
-elif page == "📈 Feature Correlation":
-    st.title("📊 Token Feature Analysis")
+    st.subheader("🔍 Snapshot Allocation")
+    selected_date = st.selectbox("Choose Rebalance Date:", sorted(weights["time"].unique(), reverse=True))
+    snapshot = weights[weights["time"] == selected_date].sort_values("weight", ascending=False)
 
-    st.markdown("#### Feature Correlation Heatmap")
-    st.image(f"{FIGURE_DIR_2}/feature_correlation_heatmap.png", use_column_width=False)
-
-    st.markdown("#### Explore Token Statistics")
-    token = st.selectbox("Select token:", features["symbol"].unique())
-    st.dataframe(features[features["symbol"] == token].head(10))
-
-# ----------------- PAGE 5: REBALANCING -----------------
-elif page == "⚙️ Rebalancing Snapshots":
-    st.title("🔁 Portfolio Rebalancing Events")
-
-    for t in weights["time"].dt.date.unique():
-        st.markdown(f"### Rebalance Date: {t}")
-        snapshot = weights[weights["time"].dt.date == t].sort_values("weight", ascending=False)
-        st.dataframe(snapshot)
+    fig, ax = plt.subplots(figsize=(8, 4))
+    sns.barplot(data=snapshot, x="symbol", y="weight", palette="Set2")
+    ax.set_title(f"Token Allocation on {pd.to_datetime(selected_date).date()}")
+    st.pyplot(fig)
