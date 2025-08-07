@@ -10,7 +10,30 @@ import matplotlib.pyplot as plt
 DATA_DIR = "data_outputs"
 FIGURE_DIR = "figures"
 TOKENS = ["BTC", "ETH", "SOL", "DOGE", "AVAX", "DOT", "LINK", "XRP", "MATIC", "ADA"]
+# ----------------- LOGIN -------------------
+def login_page():
+    st.set_page_config(page_title="CryptoSentry Login", layout="centered")
+    st.title("🔐 CryptoSentry Login")
 
+    with st.form("login_form"):
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+        submit = st.form_submit_button("Login")
+
+        if submit:
+            if username.strip() and password.strip():
+                st.session_state["authenticated"] = True
+                st.experimental_rerun()
+            else:
+                st.error("Username and password cannot be empty.")
+
+# ------------------ CHECK LOGIN --------------------
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+
+if not st.session_state["authenticated"]:
+    login_page()
+    st.stop()
 # --------------- PAGE SETUP ------------
 st.set_page_config(page_title="CryptoSentry", layout="wide")
 st.title("📈 CryptoSentry AI Dashboard")
