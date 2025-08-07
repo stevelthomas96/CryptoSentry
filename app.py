@@ -23,7 +23,7 @@ def login_page():
         if submit:
             if username.strip() and password.strip():
                 st.session_state["authenticated"] = True
-                st.experimental_rerun()
+                st.rerun()
             else:
                 st.error("Username and password cannot be empty.")
 
