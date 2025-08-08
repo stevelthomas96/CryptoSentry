@@ -18,6 +18,8 @@ LARGE_CAP = {"BTC", "ETH"}
 MID_CAP = {"DOT", "MATIC", "AVAX"}
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel("gemini-pro")
+chat = model.start_chat()
 
 # ---------------- LOAD DATA ---------------- #
 @st.cache_data
