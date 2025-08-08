@@ -368,6 +368,50 @@ elif selection == "Market Signals":
 
     st.plotly_chart(fig_corr, use_container_width=False)
     
+    # --- Load actual data files ---
+    sentiment_df = pd.read_csv("data_outputs/sentiment_timeseries.csv", parse_dates=["date"])
+    returns_df = pd.read_csv("data_outputs/token_features.csv")  # must contain 'symbol', 'return_7d', 'volatility'
+
+    # --- Token selection and automatic lookup ---
+    st.subheader("📊 Token Rebalancing Explanation (Powered by Gemini AI)")
+    st.markdown("Select a token to understand why it has been reweighted based on sentiment and market signals.")
+
+    token = st.selectbox("Choose token", sorted(sentiment_df["symbol"].unique()))
+
+    # Get latest sentiment + disagreement for token
+    latest_row = sentiment_df[sentiment_df.symbol == token].sort_values("date", ascending=False).head(1)
+    return_row = returns_df[returns_df.symbol == token]
+
+    try:
+        sentiment = latest_row["sentiment"].values[0]
+        disagreement = latest_row["disagreement"].values[0]
+        return_pct = return_row["return_7d"].values[0]
+        volatility = return_row["volatility"].values[0]
+        auto_found = True
+    except:
+        sentiment = disagreement = return_pct = volatility = 0.0
+        auto_found = False
+
+    if auto_found:
+        st.success("Loaded sentiment and return data automatically from model output.")
+    else:
+        st.warning("Token not found in data. Using default values.")
+
+    # Manual override toggle
+    if st.checkbox("Manually override values"):
+        sentiment = st.slider("Sentiment score", -1.0, 1.0, float(sentiment))
+        disagreement = st.slider("Sentiment disagreement", 0.0, 1.0, float(disagreement))
+        return_pct = st.slider("Recent return (%)", -50.0, 50.0, float(return_pct))
+        volatility = st.slider("Volatility", 0.0, 1.0, float(volatility))
+    else:
+        st.markdown(f"**Sentiment score:** {sentiment:.2f}")
+        st.markdown(f"**Disagreement:** {disagreement:.2f}")
+        st.markdown(f"**Recent return (%):** {return_pct:.2f}")
+        st.markdown(f"**Volatility:** {volatility:.2f}")
+
+    level = st.selectbox("Explanation level", ["Beginner", "Intermediate", "Advanced"])
+
+    # Gemini query logic
     def build_explainer_prompt(token, sentiment, disagreement, return_pct, volatility, level):
         base_prompt = (
             f"Explain why {token} has been weighted as it is in the portfolio.\n"
@@ -376,7 +420,6 @@ elif selection == "Market Signals":
             f"Recent return: {return_pct}\n"
             f"Volatility: {volatility}\n"
         )
-
         if level == "Beginner":
             return "Explain in simple terms for a beginner user. " + base_prompt
         elif level == "Intermediate":
@@ -384,25 +427,11 @@ elif selection == "Market Signals":
         else:
             return "Give an advanced explanation including any model logic or equations involved. " + base_prompt
 
-
-    st.subheader("📊 Token Rebalancing Explanation (Powered by Gemini AI)")
-    st.markdown("""
-    Select a token to understand why it has been reweighted based on sentiment and market signals.
-    """)
-
-    # --- User input section (you can auto-populate from data if available) ---
-    token = st.selectbox("Choose token", ["BTC", "ETH", "SOL", "ADA", "AVAX", "DOT"])
-    sentiment = st.slider("Sentiment score", -1.0, 1.0, 0.2)
-    disagreement = st.slider("Sentiment disagreement", 0.0, 1.0, 0.4)
-    return_pct = st.slider("Recent return (%)", -50.0, 50.0, 5.0)
-    volatility = st.slider("Volatility", 0.0, 1.0, 0.6)
-    level = st.selectbox("Explanation level", ["Beginner", "Intermediate", "Advanced"])
-
     if st.button("🔍 Explain Rebalancing Decision"):
         with st.spinner("Querying Gemini AI..."):
             try:
-                prompt = build_explainer_prompt(token, sentiment, disagreement, return_pct, volatility, level)
                 client = genai.Client()
+                prompt = build_explainer_prompt(token, sentiment, disagreement, return_pct, volatility, level)
                 response = client.models.generate_content(
                     model="models/gemini-1.5-flash",
                     contents=prompt
