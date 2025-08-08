@@ -71,7 +71,7 @@ def build_portfolio_context(portfolio_df, max_tokens=10):
 # ---------------- SIDEBAR ---------------- #
 with st.sidebar:
     st.title("📊 Navigation")
-    selection = st.radio("Go to:", ["Portfolio Overview", "Market Signals", "News Sentiment", "Performance Attribution", "Optimiser Output"])
+    selection = st.radio("Go to:", ["Portfolio Overview", "Market Signals", "News Sentiment", "Performance Attribution", "Sentiment Portfolio Recommendations"])
 
 
 # Remove default padding
@@ -689,19 +689,48 @@ elif selection == "Performance Attribution":
         "Sharpe Ratio": [f"{bh_sharpe:.2f}", f"{mvo_sharpe:.2f}"]
     }))
 
-elif selection == "Optimiser Output":
-    st.title("🧠 Model-Recommended Portfolio (Sentiment Enhanced)")
+elif selection == "Sentiment Portfolio Recommendation":
+    st.markdown("## 🧠 Model-Recommended Portfolio (Sentiment Enhanced)")
+    st.markdown(
+        "Below is the raw output from our sentiment-enhanced optimization model. "
+        "This model uses recent **token sentiment scores**, **volatility**, and **returns** "
+        "to suggest a portfolio reweighting strategy based on risk-adjusted sentiment exposure."
+    )
+
+    # Load DataFrames
+    sentiment_df = pd.read_csv("data_outputs/sentiment_timeseries.csv", parse_dates=["date"])
+    price_df = pd.read_csv("data_outputs/crypto_prices.csv", parse_dates=["date"])
 
     try:
-        df = sentiment_enhanced_optimizer()
-        df["suggested_weight"] = (df["suggested_weight"] * 100).round(2)
-
-        st.markdown("Below is the raw output from our sentiment-enhanced optimization model.")
-        st.dataframe(df.rename(columns={"suggested_weight": "Weight (%)"}).set_index("symbol"),
-                     use_container_width=True)
-
-        st.bar_chart(df.set_index("symbol")["suggested_weight"])
-
-        st.success("This output reflects rebalancing logic driven by recent sentiment and volatility metrics.")
+        from optimizer import sentiment_enhanced_optimizer
+        model_weights = sentiment_enhanced_optimizer(sentiment_df, price_df)
+        model_weights = model_weights.reset_index()
+        model_weights.columns = ["Token", "Weight (%)"]
+        model_weights["Weight (%)"] = (model_weights["Weight (%)"] * 100).round(2)
+        model_weights = model_weights.sort_values("Weight (%)", ascending=False)
+        has_valid_weights = model_weights["Weight (%)"].sum() > 0
     except Exception as e:
-        st.error(f"Model error: {e}")
+        st.error(f"Optimizer error: {e}")
+        has_valid_weights = False
+
+    if not has_valid_weights:
+        st.warning("Unable to generate valid weights — using mock portfolio instead.")
+        mock_data = {
+            "Token": ["BTC", "ETH", "SOL", "AVAX", "LINK", "DOT"],
+            "Weight (%)": [25, 25, 20, 15, 10, 5]
+        }
+        model_weights = pd.DataFrame(mock_data)
+
+    with st.container():
+        st.dataframe(model_weights, use_container_width=True)
+
+        # Filter for non-zero weights only
+        chart_data = model_weights[model_weights["Weight (%)"] > 0].set_index("Token")
+        st.bar_chart(chart_data)
+
+    st.caption("📅 Last data update: " + sentiment_df["date"].max().strftime("%B %d, %Y"))
+    st.info("This output reflects rebalancing logic driven by sentiment and volatility metrics.")
+
+    csv = model_weights.to_csv(index=False).encode("utf-8")
+    st.download_button("📥 Download Portfolio", data=csv, file_name="sentiment_portfolio.csv", mime="text/csv")
+
