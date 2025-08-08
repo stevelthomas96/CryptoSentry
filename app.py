@@ -372,6 +372,15 @@ elif selection == "Market Signals":
     sentiment_df = pd.read_csv("data_outputs/sentiment_timeseries.csv", parse_dates=["date"])
     features_df = pd.read_csv("data_outputs/token_features.csv")
 
+    # Extract real return + volatility for all tokens
+    clean_features = features_df.dropna(subset=["return", "volatility"])
+    token_metric_lookup = (
+        clean_features.sort_values("symbol")
+        .groupby("symbol").tail(1)
+        .set_index("symbol")[["return", "volatility"]]
+        .to_dict(orient="index")
+    )
+
     # --- Token selection and automatic lookup ---
     st.subheader("📊 Token Rebalancing Explanation (Powered by Gemini AI)")
     st.markdown("Select a token to understand why it has been reweighted based on sentiment and market signals.")
@@ -384,9 +393,9 @@ elif selection == "Market Signals":
 
     try:
         sentiment = latest_row["sentiment"].values[0]
-        disagreement = feature_row["sentiment_disagreement"].values[0]
-        return_pct = feature_row["return"].values[0]
-        volatility = feature_row["volatility"].values[0]
+        disagreement = feature_row["sentiment_disagreement"].dropna().values[0]
+        return_pct = token_metric_lookup[token]["return"]
+        volatility = token_metric_lookup[token]["volatility"]
         auto_found = True
     except:
         sentiment = disagreement = return_pct = volatility = 0.0
@@ -401,12 +410,12 @@ elif selection == "Market Signals":
     if st.checkbox("Manually override values"):
         sentiment = st.slider("Sentiment score", -1.0, 1.0, float(sentiment))
         disagreement = st.slider("Sentiment disagreement", 0.0, 1.0, float(disagreement))
-        return_pct = st.slider("Recent return (%)", -50.0, 50.0, float(return_pct))
+        return_pct = st.slider("Recent return (%)", -50.0, 50.0, float(return_pct * 100)) / 100
         volatility = st.slider("Volatility", 0.0, 1.0, float(volatility))
     else:
         st.markdown(f"**Sentiment score:** {sentiment:.2f}")
         st.markdown(f"**Disagreement:** {disagreement:.2f}")
-        st.markdown(f"**Recent return (%):** {return_pct:.2f}")
+        st.markdown(f"**Recent return (%):** {return_pct * 100:.2f}")
         st.markdown(f"**Volatility:** {volatility:.2f}")
 
     level = st.selectbox("Explanation level", ["Beginner", "Intermediate", "Advanced"])
@@ -440,6 +449,7 @@ elif selection == "Market Signals":
                 st.markdown(f"**Answer:**\n\n{response.text}")
             except Exception as e:
                 st.error(f"Gemini API error: {e}")
+
 
 
 elif selection == "News Sentiment":
