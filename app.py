@@ -75,11 +75,11 @@ with col2:
 with st.sidebar.expander("🧠 Ask CryptoSentry (Gemini AI Assistant)"):
     st.markdown("Ask anything about portfolio, rebalancing, or sentiment logic.")
     user_query = st.text_input("Your question:", key="gemini_question")
-
+    client = genai.Client()
     if st.button("Get Answer", key="gemini_submit") and user_query:
         with st.spinner("Thinking..."):
             try:
-                response = genai.generate_content(
+                response = client.models.generate_content(
                     model="models/gemini-1.5-flash",
                     contents=user_query
                 )
