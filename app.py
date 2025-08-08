@@ -150,7 +150,10 @@ if selection == "Portfolio Overview":
             st.markdown("### 🧩 Portfolio Allocation")
 
             # Hard clean to eliminate any undefined entries
-            latest_df = latest_df.copy()
+            if "user_portfolio" in st.session_state:
+                latest_df = st.session_state["user_portfolio"].copy()
+            else:
+                latest_df = latest_df.copy()
             latest_df = latest_df.dropna(subset=["symbol", "weight"])
             latest_df = latest_df[latest_df["symbol"].astype(str).str.strip() != ""]
             latest_df = latest_df[latest_df["symbol"].astype(str).str.lower() != "nan"]
