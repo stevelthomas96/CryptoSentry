@@ -7,5 +7,5 @@ scikit-learn
 plotly
 Pillow
 cvxpy
-google-generativeai==0.3.2
+google-genai
 python-dotenv
