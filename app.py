@@ -46,6 +46,27 @@ def generate_token_rationale(symbol, delta, sentiment, vol, ret):
     
     return f"**{symbol}** is {direction} due to {sentiment_desc} sentiment, {vol_desc} volatility, and {ret_desc} recent returns."
 
+def build_portfolio_context(portfolio_df, max_tokens=10):
+    """
+    Generates a brief summary of current portfolio holdings for Gemini prompt injection.
+    Args:
+        portfolio_df (pd.DataFrame): Must contain 'symbol' and 'allocation' columns.
+        max_tokens (int): Number of top holdings to include.
+    Returns:
+        str: Portfolio context string for Gemini prompt.
+    """
+    if portfolio_df is None or "symbol" not in portfolio_df.columns:
+        return ""
+
+    try:
+        top_holdings = portfolio_df.sort_values("allocation", ascending=False).head(max_tokens)
+        context = "The user's portfolio currently holds:\n" + "\n".join(
+            f"- {row['symbol']}: {row['allocation']}%" for _, row in top_holdings.iterrows()
+        )
+        return context
+    except Exception as e:
+        return f"(Could not generate portfolio context: {e})"
+
 
 # ---------------- SIDEBAR ---------------- #
 with st.sidebar:
@@ -70,16 +91,22 @@ col1, col2, col3 = st.columns([1.4, 1, 1])  # Custom offset for better centering
 with col2:
     st.image(logo, width=300)
     
+portfolio_context = build_portfolio_context(st.session_state.get("portfolio_df", None))
+
 with st.sidebar.expander("🧠 Ask CryptoSentry (Gemini AI Assistant)"):
     st.markdown("Ask anything about portfolio, rebalancing, or sentiment logic.")
     user_query = st.text_input("Your question:", key="gemini_question")
-    client = genai.Client()
+
     if st.button("Get Answer", key="gemini_submit") and user_query:
         with st.spinner("Thinking..."):
             try:
+                client = genai.Client()
                 response = client.models.generate_content(
                     model="models/gemini-1.5-flash",
-                    contents=user_query
+                    contents=[
+                        {"role": "user", "parts": [portfolio_context]},
+                        {"role": "user", "parts": [f"Answer concisely in 2-3 sentences: {user_query}"]}
+                    ]
                 )
                 st.markdown(f"**Answer:** {response.text}")
             except Exception as e:
