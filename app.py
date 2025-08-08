@@ -75,6 +75,11 @@ col1, col2, col3 = st.columns([1.4, 1, 1])  # Custom offset for better centering
 with col2:
     st.image(logo, width=300)
     
+# Initialize chat
+model = genai.GenerativeModel("gemini-pro")
+chat = model.start_chat()
+
+# Streamlit sidebar assistant
 with st.sidebar.expander("🧠 Ask CryptoSentry (Gemini AI Assistant)"):
     st.markdown("Ask anything about portfolio, rebalancing, or sentiment logic.")
     user_query = st.text_input("Your question:", key="gemini_question")
@@ -82,11 +87,7 @@ with st.sidebar.expander("🧠 Ask CryptoSentry (Gemini AI Assistant)"):
     if st.button("Get Answer", key="gemini_submit") and user_query:
         with st.spinner("Thinking..."):
             try:
-                client = genai.Client()
-                response = client.models.generate_content(
-                    model="models/gemini-2.5-flash",
-                    contents=user_query
-                )
+                response = chat.send_message(user_query)
                 st.markdown(f"**Answer:** {response.text}")
             except Exception as e:
                 st.error(f"Gemini API error: {e}")
