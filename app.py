@@ -4,7 +4,7 @@ import plotly.express as px
 from datetime import datetime
 from PIL import Image
 import plotly.figure_factory as ff
-from optimizer import load_price_data, load_sentiment_data, compute_sentiment_momentum, mean_variance_optimisation
+from optimizer import load_price_data, load_sentiment_data, compute_sentiment_momentum, mean_variance_optimisation, sentiment_enhanced_optimizer
 import os
 from dotenv import load_dotenv
 from google import genai
@@ -689,5 +689,35 @@ elif selection == "Performance Attribution":
         "Sharpe Ratio": [f"{bh_sharpe:.2f}", f"{mvo_sharpe:.2f}"]
     }))
 
+elif selection == "Portfolio Overview":
+    st.markdown("### 📈 Suggested Portfolio Rebalance (Sentiment-Enhanced MVO)")
 
+    try:
+        # Run optimization model
+        rebalance_df = sentiment_enhanced_optimizer()
+
+        # Load current weights
+        current_weights = pd.read_csv("data_outputs/portfolio_weights.csv")
+
+        # Merge and compute difference
+        merged = pd.merge(current_weights, rebalance_df, on="symbol", how="outer").fillna(0)
+        merged.rename(columns={"weight": "Current", "suggested_weight": "Suggested"}, inplace=True)
+        merged["Change"] = merged["Suggested"] - merged["Current"]
+
+        # Format percentages
+        merged["Current"] = (merged["Current"] * 100).round(2)
+        merged["Suggested"] = (merged["Suggested"] * 100).round(2)
+        merged["Change"] = (merged["Change"] * 100).round(2)
+
+        # Display result
+        st.dataframe(
+            merged.set_index("symbol").style
+                .format("{:.2f}%")
+                .highlight_max(axis=0, color="lightgreen")
+                .highlight_min(axis=0, color="salmon"),
+            use_container_width=True
+        )
+
+    except Exception as e:
+        st.error(f"Rebalancing model error: {e}")
 
