@@ -101,13 +101,13 @@ with st.sidebar.expander("🧠 Ask CryptoSentry (Gemini AI Assistant)"):
         with st.spinner("Thinking..."):
             try:
                 client = genai.Client()
+                prompt = f"{portfolio_context}\n\nAnswer concisely in 2–3 sentences: {user_query}"
+
                 response = client.models.generate_content(
                     model="models/gemini-1.5-flash",
-                    contents=[
-                        {"role": "user", "parts": [portfolio_context]},
-                        {"role": "user", "parts": [f"Answer concisely in 2-3 sentences: {user_query}"]}
-                    ]
+                    contents=prompt
                 )
+
                 st.markdown(f"**Answer:** {response.text}")
             except Exception as e:
                 st.error(f"Gemini API error: {e}")
