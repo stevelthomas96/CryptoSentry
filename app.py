@@ -7,7 +7,7 @@ import plotly.figure_factory as ff
 from optimizer import load_price_data, load_sentiment_data, compute_sentiment_momentum, mean_variance_optimisation
 import os
 from dotenv import load_dotenv
-import google.generativeai as genai
+from google as genai
 
 # ---------------- CONFIG ---------------- #
 st.set_page_config(page_title="CryptoSentry Portfolio", layout="wide")
