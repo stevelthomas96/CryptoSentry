@@ -17,8 +17,6 @@ DATA_PATH = "data_outputs/portfolio_weights.csv"
 LARGE_CAP = {"BTC", "ETH"}
 MID_CAP = {"DOT", "MATIC", "AVAX"}
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY", st.secrets.get("GEMINI_API_KEY")))
-
 # ---------------- LOAD DATA ---------------- #
 @st.cache_data
 def load_portfolio_data():
