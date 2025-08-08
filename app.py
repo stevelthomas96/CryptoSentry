@@ -368,9 +368,9 @@ elif selection == "Market Signals":
 
     st.plotly_chart(fig_corr, use_container_width=False)
     
-    # --- Load actual data files ---
+   # --- Load actual data files ---
     sentiment_df = pd.read_csv("data_outputs/sentiment_timeseries.csv", parse_dates=["date"])
-    returns_df = pd.read_csv("data_outputs/token_features.csv")  # must contain 'symbol', 'return_7d', 'volatility'
+    features_df = pd.read_csv("data_outputs/token_features.csv")
 
     # --- Token selection and automatic lookup ---
     st.subheader("📊 Token Rebalancing Explanation (Powered by Gemini AI)")
@@ -378,15 +378,15 @@ elif selection == "Market Signals":
 
     token = st.selectbox("Choose token", sorted(sentiment_df["symbol"].unique()))
 
-    # Get latest sentiment + disagreement for token
+    # Get latest sentiment for token
     latest_row = sentiment_df[sentiment_df.symbol == token].sort_values("date", ascending=False).head(1)
-    return_row = returns_df[returns_df.symbol == token]
+    feature_row = features_df[features_df.symbol == token]
 
     try:
         sentiment = latest_row["sentiment"].values[0]
-        disagreement = latest_row["disagreement"].values[0]
-        return_pct = return_row["return_7d"].values[0]
-        volatility = return_row["volatility"].values[0]
+        disagreement = feature_row["sentiment_disagreement"].values[0]
+        return_pct = feature_row["return"].values[0]
+        volatility = feature_row["volatility"].values[0]
         auto_found = True
     except:
         sentiment = disagreement = return_pct = volatility = 0.0
