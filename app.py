@@ -367,6 +367,51 @@ elif selection == "Market Signals":
     )
 
     st.plotly_chart(fig_corr, use_container_width=False)
+    
+    def build_explainer_prompt(token, sentiment, disagreement, return_pct, volatility, level):
+    base_prompt = (
+        f"Explain why {token} has been weighted as it is in the portfolio.\n"
+        f"Sentiment score: {sentiment}\n"
+        f"Disagreement: {disagreement}\n"
+        f"Recent return: {return_pct}\n"
+        f"Volatility: {volatility}\n"
+    )
+
+    if level == "Beginner":
+        return "Explain in simple terms for a beginner user. " + base_prompt
+    elif level == "Intermediate":
+        return "Explain for an informed user including how sentiment links to portfolio allocation. " + base_prompt
+    else:
+        return "Give an advanced explanation including any model logic or equations involved. " + base_prompt
+
+
+    st.subheader("📊 Token Rebalancing Explanation (Powered by Gemini AI)")
+    st.markdown("""
+    Select a token to understand why it has been reweighted based on sentiment and market signals.
+    """)
+
+    # --- User input section (you can auto-populate from data if available) ---
+    token = st.selectbox("Choose token", ["BTC", "ETH", "SOL", "ADA", "AVAX", "DOT"])
+    sentiment = st.slider("Sentiment score", -1.0, 1.0, 0.2)
+    disagreement = st.slider("Sentiment disagreement", 0.0, 1.0, 0.4)
+    return_pct = st.slider("Recent return (%)", -50.0, 50.0, 5.0)
+    volatility = st.slider("Volatility", 0.0, 1.0, 0.6)
+    level = st.selectbox("Explanation level", ["Beginner", "Intermediate", "Advanced"])
+
+    if st.button("🔍 Explain Rebalancing Decision"):
+        with st.spinner("Querying Gemini AI..."):
+            try:
+                prompt = build_explainer_prompt(token, sentiment, disagreement, return_pct, volatility, level)
+                client = genai.Client()
+                response = client.models.generate_content(
+                    model="models/gemini-1.5-flash",
+                    contents=prompt
+                )
+                st.success("Explanation ready!")
+                st.markdown(f"**Answer:**\n\n{response.text}")
+            except Exception as e:
+                st.error(f"Gemini API error: {e}")
+
 
 elif selection == "News Sentiment":
     import plotly.express as px
