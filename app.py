@@ -5,6 +5,9 @@ from datetime import datetime
 from PIL import Image
 import plotly.figure_factory as ff
 from optimizer import load_price_data, load_sentiment_data, compute_sentiment_momentum, mean_variance_optimisation
+import os
+from dotenv import load_dotenv
+import google.generativeai as genai
 
 # ---------------- CONFIG ---------------- #
 st.set_page_config(page_title="CryptoSentry Portfolio", layout="wide")
@@ -13,6 +16,8 @@ DATA_PATH = "data_outputs/portfolio_weights.csv"
 # Mock token market caps
 LARGE_CAP = {"BTC", "ETH"}
 MID_CAP = {"DOT", "MATIC", "AVAX"}
+
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
 # ---------------- LOAD DATA ---------------- #
 @st.cache_data
@@ -66,6 +71,19 @@ logo = Image.open("cryptosentrylogo.png")
 col1, col2, col3 = st.columns([1.4, 1, 1])  # Custom offset for better centering
 with col2:
     st.image(logo, width=300)
+    
+with st.sidebar.expander("🧠 Ask CryptoSentry (Gemini AI Assistant)"):
+    st.markdown("Ask anything about portfolio, rebalancing, or sentiment logic.")
+    user_query = st.text_input("Your question:", key="gemini_question")
+
+    if st.button("Get Answer", key="gemini_submit") and user_query:
+        with st.spinner("Thinking..."):
+            try:
+                response = chat.send_message(user_query)
+                st.markdown(f"**Answer:** {response.text}")
+            except Exception as e:
+                st.error(f"Gemini API error: {e}")
+
 
 # ---------------- MAIN: PORTFOLIO ---------------- #
 if selection == "Portfolio Overview":
