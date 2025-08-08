@@ -71,7 +71,15 @@ def build_portfolio_context(portfolio_df, max_tokens=10):
 # ---------------- SIDEBAR ---------------- #
 with st.sidebar:
     st.title("📊 Navigation")
-    selection = st.radio("Go to:", ["Portfolio Overview", "Market Signals", "News Sentiment", "Performance Attribution", "Portfolio Recommendations"])
+    selection = st.radio("Go to:", [
+        "Portfolio Overview",
+        "Market Signals",
+        "News Sentiment",
+        "Performance Attribution",
+        "Sentiment Portfolio Recommendations",
+        "Build My Portfolio"
+    ])
+
 
 
 # Remove default padding
@@ -754,4 +762,46 @@ elif selection == "Portfolio Recommendations":
         file_name="sentiment_portfolio.csv",
         mime="text/csv"
     )
+
+elif selection == "Build My Portfolio":
+    st.title("🛠️ Build My Portfolio")
+    st.markdown("Use the sliders below to create your custom portfolio allocation. "
+                "The total must add up to exactly **100%** before you can confirm.")
+
+    # Token list for building portfolio
+    tokens = ["BTC", "ETH", "SOL", "AVAX", "DOT", "LINK", "MATIC", "ADA", "XRP", "DOGE"]
+
+    # Initialize session state
+    if "portfolio_weights" not in st.session_state:
+        st.session_state.portfolio_weights = {token: 0 for token in tokens}
+
+    st.subheader("🔢 Token Weights")
+    total = 0
+    cols = st.columns(2)
+
+    # Create sliders and store in session state
+    for idx, token in enumerate(tokens):
+        with cols[idx % 2]:
+            weight = st.slider(f"{token} weight (%)", 0, 100, st.session_state.portfolio_weights[token], step=1)
+            st.session_state.portfolio_weights[token] = weight
+            total += weight
+
+    st.markdown(f"### 📊 Total: **{total}%**")
+    if total < 100:
+        st.warning("⚠️ Total is less than 100%. Please adjust your weights.")
+    elif total > 100:
+        st.error("❌ Total exceeds 100%. Please reduce some weights.")
+    else:
+        st.success("✅ Perfect! Total is exactly 100%. You can confirm your portfolio.")
+
+        # Confirm and store portfolio as DataFrame
+        if st.button("Confirm Portfolio"):
+            weights_df = pd.DataFrame([
+                {"symbol": token, "weight": st.session_state.portfolio_weights[token] / 100}
+                for token in tokens if st.session_state.portfolio_weights[token] > 0
+            ])
+            weights_df["time"] = pd.Timestamp.now()
+            st.session_state["user_portfolio"] = weights_df
+            st.success("🎉 Portfolio saved! It will now be used throughout the app.")
+            st.dataframe(weights_df[["symbol", "weight"]], use_container_width=True)
 
