@@ -369,20 +369,20 @@ elif selection == "Market Signals":
     st.plotly_chart(fig_corr, use_container_width=False)
     
     def build_explainer_prompt(token, sentiment, disagreement, return_pct, volatility, level):
-    base_prompt = (
-        f"Explain why {token} has been weighted as it is in the portfolio.\n"
-        f"Sentiment score: {sentiment}\n"
-        f"Disagreement: {disagreement}\n"
-        f"Recent return: {return_pct}\n"
-        f"Volatility: {volatility}\n"
-    )
+        base_prompt = (
+            f"Explain why {token} has been weighted as it is in the portfolio.\n"
+            f"Sentiment score: {sentiment}\n"
+            f"Disagreement: {disagreement}\n"
+            f"Recent return: {return_pct}\n"
+            f"Volatility: {volatility}\n"
+        )
 
-    if level == "Beginner":
-        return "Explain in simple terms for a beginner user. " + base_prompt
-    elif level == "Intermediate":
-        return "Explain for an informed user including how sentiment links to portfolio allocation. " + base_prompt
-    else:
-        return "Give an advanced explanation including any model logic or equations involved. " + base_prompt
+        if level == "Beginner":
+            return "Explain in simple terms for a beginner user. " + base_prompt
+        elif level == "Intermediate":
+            return "Explain for an informed user including how sentiment links to portfolio allocation. " + base_prompt
+        else:
+            return "Give an advanced explanation including any model logic or equations involved. " + base_prompt
 
 
     st.subheader("📊 Token Rebalancing Explanation (Powered by Gemini AI)")
