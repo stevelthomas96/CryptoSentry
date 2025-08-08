@@ -19,9 +19,6 @@ MID_CAP = {"DOT", "MATIC", "AVAX"}
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY", st.secrets.get("GEMINI_API_KEY")))
 
-# Correctly load chat model
-chat = genai.GenerativeModel("gemini-pro").start_chat()
-
 # ---------------- LOAD DATA ---------------- #
 @st.cache_data
 def load_portfolio_data():
