@@ -17,16 +17,7 @@ DATA_PATH = "data_outputs/portfolio_weights.csv"
 LARGE_CAP = {"BTC", "ETH"}
 MID_CAP = {"DOT", "MATIC", "AVAX"}
 
-api_key = None
-try:
-    import streamlit as st
-    api_key = st.secrets["GEMINI_API_KEY"]
-except:
-    from dotenv import load_dotenv
-    load_dotenv()
-    api_key = os.getenv("GEMINI_API_KEY")
-
-genai.configure(api_key=api_key)
+genai.configure(api_key=os.getenv("GEMINI_API_KEY", st.secrets.get("GEMINI_API_KEY")))
 
 # Correctly load chat model
 chat = genai.GenerativeModel("gemini-pro").start_chat()
@@ -91,11 +82,14 @@ with st.sidebar.expander("🧠 Ask CryptoSentry (Gemini AI Assistant)"):
     if st.button("Get Answer", key="gemini_submit") and user_query:
         with st.spinner("Thinking..."):
             try:
-                response = chat.send_message(user_query)
+                client = genai.Client()
+                response = client.models.generate_content(
+                    model="models/gemini-2.5-flash",
+                    contents=user_query
+                )
                 st.markdown(f"**Answer:** {response.text}")
             except Exception as e:
                 st.error(f"Gemini API error: {e}")
-
 
 # ---------------- MAIN: PORTFOLIO ---------------- #
 if selection == "Portfolio Overview":
