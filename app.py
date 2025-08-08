@@ -71,7 +71,7 @@ def build_portfolio_context(portfolio_df, max_tokens=10):
 # ---------------- SIDEBAR ---------------- #
 with st.sidebar:
     st.title("📊 Navigation")
-    selection = st.radio("Go to:", ["Portfolio Overview", "Market Signals", "News Sentiment", "Performance Attribution"])
+    selection = st.radio("Go to:", ["Portfolio Overview", "Market Signals", "News Sentiment", "Performance Attribution", "Optimiser Output"])
 
 
 # Remove default padding
@@ -689,35 +689,19 @@ elif selection == "Performance Attribution":
         "Sharpe Ratio": [f"{bh_sharpe:.2f}", f"{mvo_sharpe:.2f}"]
     }))
 
-elif selection == "Portfolio Overview":
-    st.markdown("### 📈 Suggested Portfolio Rebalance (Sentiment-Enhanced MVO)")
+elif selection == "Optimiser Output":
+    st.title("🧠 Model-Recommended Portfolio (Sentiment Enhanced)")
 
     try:
-        # Run optimization model
-        rebalance_df = sentiment_enhanced_optimizer()
+        df = sentiment_enhanced_optimizer()
+        df["suggested_weight"] = (df["suggested_weight"] * 100).round(2)
 
-        # Load current weights
-        current_weights = pd.read_csv("data_outputs/portfolio_weights.csv")
+        st.markdown("Below is the raw output from our sentiment-enhanced optimization model.")
+        st.dataframe(df.rename(columns={"suggested_weight": "Weight (%)"}).set_index("symbol"),
+                     use_container_width=True)
 
-        # Merge and compute difference
-        merged = pd.merge(current_weights, rebalance_df, on="symbol", how="outer").fillna(0)
-        merged.rename(columns={"weight": "Current", "suggested_weight": "Suggested"}, inplace=True)
-        merged["Change"] = merged["Suggested"] - merged["Current"]
+        st.bar_chart(df.set_index("symbol")["suggested_weight"])
 
-        # Format percentages
-        merged["Current"] = (merged["Current"] * 100).round(2)
-        merged["Suggested"] = (merged["Suggested"] * 100).round(2)
-        merged["Change"] = (merged["Change"] * 100).round(2)
-
-        # Display result
-        st.dataframe(
-            merged.set_index("symbol").style
-                .format("{:.2f}%")
-                .highlight_max(axis=0, color="lightgreen")
-                .highlight_min(axis=0, color="salmon"),
-            use_container_width=True
-        )
-
+        st.success("This output reflects rebalancing logic driven by recent sentiment and volatility metrics.")
     except Exception as e:
-        st.error(f"Rebalancing model error: {e}")
-
+        st.error(f"Model error: {e}")
