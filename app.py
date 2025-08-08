@@ -71,7 +71,7 @@ def build_portfolio_context(portfolio_df, max_tokens=10):
 # ---------------- SIDEBAR ---------------- #
 with st.sidebar:
     st.title("📊 Navigation")
-    selection = st.radio("Go to:", ["Portfolio Overview", "Market Signals", "News Sentiment", "Performance Attribution", "Sentiment Portfolio Recommendations"])
+    selection = st.radio("Go to:", ["Portfolio Overview", "Market Signals", "News Sentiment", "Performance Attribution", "Sentiment Portfolio Recommendation"])
 
 
 # Remove default padding
