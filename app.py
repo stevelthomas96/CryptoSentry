@@ -256,6 +256,17 @@ if selection == "Portfolio Overview":
 
         except Exception as e:
             st.error(f"Rebalancing model error: {e}")
+            
+        try:
+            rebalance_csv = compare_df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="📥 Download Suggested Rebalance",
+                data=rebalance_csv,
+                file_name="suggested_rebalance.csv",
+                mime="text/csv"
+            )
+        except Exception as e:
+            st.warning("Rebalance comparison data not available.")
 
 
 
@@ -688,6 +699,18 @@ elif selection == "Performance Attribution":
         "Total Return": [f"{bh_ret:.2%}", f"{mvo_ret:.2%}"],
         "Sharpe Ratio": [f"{bh_sharpe:.2f}", f"{mvo_sharpe:.2f}"]
     }))
+    
+    try:
+        perf_df = pd.read_csv("data_outputs/performance_comparison.csv")
+        perf_csv = perf_df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label="📥 Download Performance Comparison",
+            data=perf_csv,
+            file_name="strategy_performance.csv",
+            mime="text/csv"
+        )
+    except Exception as e:
+        st.warning("Performance data not found for download.")
 
 elif selection == "Portfolio Recommendations":
     st.markdown("## 🧠 Model-Recommended Portfolio (Sentiment Enhanced)")
@@ -722,3 +745,13 @@ elif selection == "Portfolio Recommendations":
         "✅ This output reflects a rebalanced portfolio, where token weights are influenced by recent "
         "market sentiment and historical volatility."
     )
+    
+    # Add download button for the sentiment-enhanced portfolio
+    csv = sentiment_portfolio_df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label="📥 Download Portfolio Recommendation",
+        data=csv,
+        file_name="sentiment_portfolio.csv",
+        mime="text/csv"
+    )
+
