@@ -17,9 +17,19 @@ DATA_PATH = "data_outputs/portfolio_weights.csv"
 LARGE_CAP = {"BTC", "ETH"}
 MID_CAP = {"DOT", "MATIC", "AVAX"}
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-pro")
-chat = model.start_chat()
+api_key = None
+try:
+    import streamlit as st
+    api_key = st.secrets["GEMINI_API_KEY"]
+except:
+    from dotenv import load_dotenv
+    load_dotenv()
+    api_key = os.getenv("GEMINI_API_KEY")
+
+genai.configure(api_key=api_key)
+
+# Correctly load chat model
+chat = genai.GenerativeModel("gemini-pro").start_chat()
 
 # ---------------- LOAD DATA ---------------- #
 @st.cache_data
